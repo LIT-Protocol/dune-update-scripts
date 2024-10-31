@@ -141,7 +141,7 @@ async function fetchPKPs(
                     const tokenId = event.args.tokenId.toString();
                     const publicKey = event.args.pubkey;
                     const { p2pkh, p2wpkh, p2shP2wpkh, p2tr, p2wsh, p2sh } =
-                    calculateBtcAddresses(publicKey);   
+                        calculateBtcAddresses(publicKey);
                     try {
                         // Fetch the ETH address associated with the tokenId
                         const ethAddress = await contract.getEthAddress(
@@ -270,7 +270,7 @@ function cleanArray(dataArray) {
 
 function convertToCSV(data) {
     const headers =
-        "Blockchain,Network,Token ID,ETH Address,BTC P2PKH,BTC P2WPKH,BTC P2SHP2WPKH,BTC P2TR,BTC P2WSH,BTC P2SH";
+        "blockchain,network,token_id,eth_address,btc_p2pkh,btc_p2wpkh,btc_p2shp2wpkh,btc_p2tr,btc_p2wsh,btc_p2sh";
     const rows = data
         .map(
             (row) =>
@@ -280,49 +280,51 @@ function convertToCSV(data) {
     return `${headers}\n${rows}`;
 }
 
-const CSV_DIR = 'csv';
+const CSV_DIR = "csv";
 
 const getFormattedDate = () => {
     const date = new Date();
     return {
-        day: date.getDate().toString().padStart(2, '0'),
-        month: (date.getMonth() + 1).toString().padStart(2, '0'),
-        year: date.getFullYear().toString().slice(-2)
+        day: date.getDate().toString().padStart(2, "0"),
+        month: (date.getMonth() + 1).toString().padStart(2, "0"),
+        year: date.getFullYear().toString().slice(-2),
     };
 };
 
 function writePkpCSV(_data) {
     if (!fs.existsSync(CSV_DIR)) {
         fs.mkdirSync(CSV_DIR);
-        console.log('Created csv directory');
+        console.log("Created csv directory");
     }
     const { day, month, year } = getFormattedDate();
-    
+
     const fileName = `pkp-${day}-${month}-${year}.csv`;
     const filePath = path.join(CSV_DIR, fileName);
-    
+
     fs.writeFileSync(filePath, _data);
     console.log(`PKP CSV data exported successfully to ${filePath}`);
 }
 
-function writeBlockCSV(_data) {
+function writeBlocksCSV(_startBlock, _endBlock) {
+    const csvHeader = "block_type,block_number\n";
+    const csvData = `start,${_startBlock}\nend,${_endBlock}`;
+    const fullCsvContent = csvHeader + csvData;
+
     if (!fs.existsSync(CSV_DIR)) {
         fs.mkdirSync(CSV_DIR);
-        console.log('Created csv directory');
+        console.log("Created csv directory");
     }
 
     const { day, month, year } = getFormattedDate();
-    
+
     const fileName = `block-${day}-${month}-${year}.csv`;
     const filePath = path.join(CSV_DIR, fileName);
-    
-    fs.writeFileSync(filePath, _data);
+
+    fs.writeFileSync(filePath, fullCsvContent);
     console.log(`Block CSV data exported successfully to ${filePath}`);
 }
 
-
-
-async function main() {
+export async function scan(startBlock) {
     const blockchain = process.env.BLOCKCHAIN;
 
     const { rpcUrl, chainId } = blockchains[blockchain];
@@ -334,13 +336,11 @@ async function main() {
         chainId,
     });
 
-    const startBlock = 680086;
     const endBlock = await provider.getBlockNumber();
     const network = process.env.NETWORK || "all";
-    // const endBlock = 680086;
 
-    console.log("endBlock: ", endBlock)
-    
+    console.log("endBlock: ", endBlock);
+
     const PKPs = await fetchPKPs(
         startBlock,
         endBlock,
@@ -349,10 +349,12 @@ async function main() {
         provider
     );
 
-    const csv = convertToCSV(PKPs);
-    writePkpCSV(csv);
-    writeBlockCSV(`start block: ${startBlock.toString()} \nend block: ${endBlock.toString()}`);
+    const csvData = convertToCSV(PKPs);
+    return { csvData, blocksData };
 }
 
-main()
-// 680086
+async function main() {
+    const {csvData} = await scan();
+    writePkpCSV(csvData);
+    writeBlocksCSV(startBlock, endBlock);
+}
